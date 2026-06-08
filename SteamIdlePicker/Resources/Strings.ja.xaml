@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <sys:String x:Key="Str.RefreshLibrary">ライブラリ読み込み</sys:String>
+    <sys:String x:Key="Str.Selected">選択中: </sys:String>
+    <sys:String x:Key="Str.LastFetched">最終取得: </sys:String>
+    <sys:String x:Key="Str.IdlingStatus">● アイドル中</sys:String>
+    <sys:String x:Key="Str.Elapsed">経過時間: </sys:String>
+    <sys:String x:Key="Str.Active">起動中: </sys:String>
+    <sys:String x:Key="Str.Games"> ゲーム</sys:String>
+    <sys:String x:Key="Str.Running">● 起動中</sys:String>
+    <sys:String x:Key="Str.ClearAll">すべて解除</sys:String>
+    <sys:String x:Key="Str.IdleStart">▶ アイドル開始</sys:String>
+    <sys:String x:Key="Str.IdleStop">■ アイドル停止</sys:String>
+    <sys:String x:Key="Str.LangToggle">EN</sys:String>
+    <sys:String x:Key="Str.LoadingLibrary">ライブラリを読み込み中...</sys:String>
+    <sys:String x:Key="Str.LoadError">読み込みエラー: </sys:String>
+    <sys:String x:Key="Str.NoCache">「ライブラリ読み込み」を押してゲーム一覧を取得してください</sys:String>
+    <sys:String x:Key="Str.TrayShow">表示</sys:String>
+    <sys:String x:Key="Str.TrayQuit">停止して終了</sys:String>
+    <sys:String x:Key="Str.StatusConnected">{0} 件取得（インストール済み: {1} 件、追加解決: {2} 件）</sys:String>
+    <sys:String x:Key="Str.StatusOffline">{0} 件取得（インストール済みのみ。Steam 起動中であれば全ライブラリを読み込めます）</sys:String>
+</ResourceDictionary>

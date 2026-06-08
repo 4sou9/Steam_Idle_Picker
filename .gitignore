@@ -1,0 +1,32 @@
+# Claude Code
+CLAUDE.md
+
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# NuGet
+*.nupkg
+packages/
+project.lock.json
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs (デバッグ用一時ファイル)
+*.log
+
+# Dependencies
+Dependencies/Steamworks.NET.dll
