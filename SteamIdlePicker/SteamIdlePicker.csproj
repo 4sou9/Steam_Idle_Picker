@@ -9,19 +9,45 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <!-- Release builds: no .pdb -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
   <ItemGroup>
-    <Content Include="Resources\app.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!-- Prevent app.ico from being copied to output (it's embedded in the exe via ApplicationIcon) -->
+    <Content Remove="Resources\app.ico" />
   </ItemGroup>
+
   <ItemGroup>
+    <!-- Private=false prevents steam-idle files from being auto-copied to the root output dir -->
     <ProjectReference Include="..\SteamIdle\SteamIdle.csproj"
-                      ReferenceOutputAssembly="false" />
+                      ReferenceOutputAssembly="false"
+                      Private="false" />
   </ItemGroup>
+
+  <!-- Remove empty Resources folder left by WPF SDK after build -->
+  <Target Name="CleanEmptyFolders" AfterTargets="CopySteamIdle">
+    <RemoveDir Directories="$(OutputPath)Resources" />
+  </Target>
+
+  <!-- Remove stale engine folder before copy to avoid leftover files from previous builds -->
+  <Target Name="CleanEngine" BeforeTargets="CopySteamIdle">
+    <RemoveDir Directories="$(OutputPath)engine" />
+  </Target>
+
   <Target Name="CopySteamIdle" AfterTargets="Build">
     <ItemGroup>
+      <!-- Exclude .pdb and non-Windows runtimes; keep win-x64 (required by deps.json) -->
       <SteamIdleFiles Include="..\SteamIdle\bin\$(Configuration)\net8.0-windows\**\*.*"
-                      Exclude="..\SteamIdle\bin\$(Configuration)\net8.0-windows\*.pdb" />
+                      Exclude="..\SteamIdle\bin\$(Configuration)\net8.0-windows\*.pdb;
+                               ..\SteamIdle\bin\$(Configuration)\net8.0-windows\runtimes\linux-x64\**\*.*;
+                               ..\SteamIdle\bin\$(Configuration)\net8.0-windows\runtimes\linux-x86\**\*.*;
+                               ..\SteamIdle\bin\$(Configuration)\net8.0-windows\runtimes\osx-x64\**\*.*;
+                               ..\SteamIdle\bin\$(Configuration)\net8.0-windows\runtimes\osx-x86\**\*.*;
+                               ..\SteamIdle\bin\$(Configuration)\net8.0-windows\runtimes\win-x86\**\*.*" />
       <SteamIdleFiles Include="..\Dependencies\steam_api64.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(SteamIdleFiles)"

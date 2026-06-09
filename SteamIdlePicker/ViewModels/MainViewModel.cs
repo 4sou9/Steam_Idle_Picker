@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -11,6 +12,8 @@ using SteamIdlePicker.Services;
 
 namespace SteamIdlePicker.ViewModels;
 
+public enum SortMode { None, IdleStatus, Name, AppId }
+
 public class MainViewModel : INotifyPropertyChanged
 {
     private readonly SettingsService _settingsService;
@@ -21,10 +24,9 @@ public class MainViewModel : INotifyPropertyChanged
     private string _searchText = string.Empty;
     private bool _isIdling;
     private bool _isRefreshing;
-    private string _elapsedTime = "00:00:00";
-    private string _lastFetched = "—";
     private string _statusMessage = string.Empty;
-    private DateTime _idleStartTime;
+    private SortMode _currentSortMode = SortMode.None;
+    private bool _sortAscending = true;
 
     public const int MaxSelection = 32;
 
@@ -51,35 +53,41 @@ public class MainViewModel : INotifyPropertyChanged
         private set { _isRefreshing = value; OnPropertyChanged(); }
     }
 
-    public string ElapsedTime
-    {
-        get => _elapsedTime;
-        private set { _elapsedTime = value; OnPropertyChanged(); }
-    }
-
-    public string LastFetched
-    {
-        get => _lastFetched;
-        private set { _lastFetched = value; OnPropertyChanged(); }
-    }
-
     public string StatusMessage
     {
         get => _statusMessage;
-        private set { _statusMessage = value; OnPropertyChanged(); }
+        private set
+        {
+            _statusMessage = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasStatusMessage));
+        }
     }
+
+    public bool HasStatusMessage => !string.IsNullOrEmpty(_statusMessage);
 
     public int SelectedCount => AllGames.Count(g => g.IsSelected);
     public int IdlingCount => AllGames.Count(g => g.IsIdling);
+    public string IdlingDisplay => $"{IdlingCount}/{MaxSelection}";
+
     public string ToggleButtonLabel => IsIdling
         ? LanguageService.Get("Str.IdleStop")
         : LanguageService.Get("Str.IdleStart");
+
+    // Sort labels — include ↑/↓ when that sort is active
+    public string StatusSortLabel => GetSortLabel(SortMode.IdleStatus, "Str.SortStatus");
+    public string NameSortLabel   => GetSortLabel(SortMode.Name,       "Str.SortName");
+    public string IdSortLabel     => GetSortLabel(SortMode.AppId,      "Str.SortId");
+    public string StatusSortArrow => _currentSortMode == SortMode.IdleStatus
+        ? (_sortAscending ? " ↑" : " ↓") : string.Empty;
 
     public ICommand ToggleIdleCommand { get; }
     public ICommand StopSingleCommand { get; }
     public ICommand ClearSelectionCommand { get; }
     public ICommand RefreshLibraryCommand { get; }
-    public ICommand ToggleLanguageCommand { get; }
+    public ICommand SortByStatusCommand { get; }
+    public ICommand SortByNameCommand { get; }
+    public ICommand SortByIdCommand { get; }
 
     public MainViewModel()
     {
@@ -92,34 +100,61 @@ public class MainViewModel : INotifyPropertyChanged
             _ => { if (IsIdling) StopAll(); else StartIdle(); },
             _ => IsIdling || SelectedCount > 0);
 
-        StopSingleCommand = new RelayCommand(p => StopSingle((int)p!));
+        StopSingleCommand    = new RelayCommand(p => StopSingle((int)p!));
         ClearSelectionCommand = new RelayCommand(_ => ClearSelection());
         RefreshLibraryCommand = new RelayCommand(
             _ => _ = RefreshLibraryAsync(),
             _ => !IsRefreshing);
-        ToggleLanguageCommand = new RelayCommand(_ => ToggleLanguage());
+
+        SortByStatusCommand = new RelayCommand(_ => ToggleSort(SortMode.IdleStatus));
+        SortByNameCommand   = new RelayCommand(_ => ToggleSort(SortMode.Name));
+        SortByIdCommand     = new RelayCommand(_ => ToggleSort(SortMode.AppId));
 
         LanguageService.LanguageChanged += (_, _) =>
+        {
             OnPropertyChanged(nameof(ToggleButtonLabel));
+            OnPropertyChanged(nameof(StatusSortLabel));
+            OnPropertyChanged(nameof(NameSortLabel));
+            OnPropertyChanged(nameof(IdSortLabel));
+        };
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += (_, _) => UpdateElapsed();
+        _timer.Tick += (_, _) => NotifyCountsChanged();
 
         LoadCache();
     }
 
-    private void ToggleLanguage()
-    {
-        Settings.Language = Settings.Language == "ja" ? "en" : "ja";
-        LanguageService.Apply(Settings.Language);
-        _settingsService.Save(Settings);
+    // ── Sort ──────────────────────────────────────────────────────────────
 
-        // Refresh status message if it's one of the fixed strings
-        if (StatusMessage == LanguageService.Get("Str.NoCache") ||
-            StatusMessage == string.Empty) return;
-        if (!AllGames.Any())
-            StatusMessage = LanguageService.Get("Str.NoCache");
+    private string GetSortLabel(SortMode mode, string key)
+    {
+        var baseName = LanguageService.Get(key);
+        if (_currentSortMode != mode) return baseName;
+        return _sortAscending ? $"{baseName} ↑" : $"{baseName} ↓";
     }
+
+    private void ToggleSort(SortMode mode)
+    {
+        if (_currentSortMode == mode)
+            _sortAscending = !_sortAscending;
+        else
+        {
+            _currentSortMode = mode;
+            _sortAscending = true;
+        }
+        NotifySortLabels();
+        ApplyFilter();
+    }
+
+    private void NotifySortLabels()
+    {
+        OnPropertyChanged(nameof(StatusSortLabel));
+        OnPropertyChanged(nameof(StatusSortArrow));
+        OnPropertyChanged(nameof(NameSortLabel));
+        OnPropertyChanged(nameof(IdSortLabel));
+    }
+
+    // ── Data ──────────────────────────────────────────────────────────────
 
     private void LoadCache()
     {
@@ -130,10 +165,9 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
         PopulateGames(cache, Settings.SelectedGames.ToHashSet());
-        LastFetched = cache.FetchedAt.ToString("yyyy-MM-dd HH:mm");
     }
 
-    private void PopulateGames(GameCache cache, System.Collections.Generic.HashSet<int> selectedIds)
+    private void PopulateGames(GameCache cache, HashSet<int> selectedIds)
     {
         AllGames.Clear();
         foreach (var game in cache.Games)
@@ -151,14 +185,29 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void ApplyFilter()
     {
-        FilteredGames.Clear();
         var search = _searchText.Trim();
-        foreach (var vm in AllGames)
+        IEnumerable<GameItemViewModel> result = AllGames;
+
+        if (!string.IsNullOrEmpty(search))
+            result = result.Where(g => g.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+        result = _currentSortMode switch
         {
-            if (string.IsNullOrEmpty(search) ||
-                vm.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
-                FilteredGames.Add(vm);
-        }
+            SortMode.Name => _sortAscending
+                ? result.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                : result.OrderByDescending(g => g.Name, StringComparer.OrdinalIgnoreCase),
+            SortMode.AppId => _sortAscending
+                ? result.OrderBy(g => g.AppId)
+                : result.OrderByDescending(g => g.AppId),
+            SortMode.IdleStatus => _sortAscending
+                ? result.OrderByDescending(g => g.IsIdling)  // running first
+                : result.OrderBy(g => g.IsIdling),            // not-running first
+            _ => result
+        };
+
+        FilteredGames.Clear();
+        foreach (var vm in result)
+            FilteredGames.Add(vm);
     }
 
     private void OnGamePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -190,7 +239,6 @@ public class MainViewModel : INotifyPropertyChanged
             vm.IsIdling = true;
         }
         IsIdling = true;
-        _idleStartTime = DateTime.Now;
         _timer.Start();
         NotifyCountsChanged();
     }
@@ -201,7 +249,6 @@ public class MainViewModel : INotifyPropertyChanged
         foreach (var vm in AllGames) vm.IsIdling = false;
         IsIdling = false;
         _timer.Stop();
-        ElapsedTime = "00:00:00";
         NotifyCountsChanged();
     }
 
@@ -210,7 +257,7 @@ public class MainViewModel : INotifyPropertyChanged
         _idleManager.StopIdle(appId);
         var vm = AllGames.FirstOrDefault(g => g.AppId == appId);
         if (vm != null) { vm.IsIdling = false; vm.IsSelected = false; }
-        if (!AllGames.Any(g => g.IsIdling)) { IsIdling = false; _timer.Stop(); ElapsedTime = "00:00:00"; }
+        if (!AllGames.Any(g => g.IsIdling)) { IsIdling = false; _timer.Stop(); }
         NotifyCountsChanged();
     }
 
@@ -230,12 +277,6 @@ public class MainViewModel : INotifyPropertyChanged
             var selectedIds = AllGames.Where(g => g.IsSelected).Select(g => g.AppId).ToHashSet();
             var result = await _gameCacheService.FetchLocalLibraryAsync();
             PopulateGames(result.Cache, selectedIds);
-            LastFetched = result.Cache.FetchedAt.ToString("yyyy-MM-dd HH:mm");
-            StatusMessage = result.Connected
-                ? string.Format(LanguageService.Get("Str.StatusConnected"),
-                    result.Cache.Games.Count, result.InstalledCount, result.ResolvedCount)
-                : string.Format(LanguageService.Get("Str.StatusOffline"),
-                    result.InstalledCount);
         }
         catch (Exception ex)
         {
@@ -246,9 +287,6 @@ public class MainViewModel : INotifyPropertyChanged
             IsRefreshing = false;
         }
     }
-
-    private void UpdateElapsed()
-        => ElapsedTime = (DateTime.Now - _idleStartTime).ToString(@"hh\:mm\:ss");
 
     private void SaveSelectedGames()
     {
@@ -262,6 +300,11 @@ public class MainViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(IdlingCount));
+        OnPropertyChanged(nameof(IdlingDisplay));
+
+        // Re-sort list when idle status changes (e.g. game starts/stops)
+        if (_currentSortMode == SortMode.IdleStatus)
+            ApplyFilter();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

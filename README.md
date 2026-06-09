@@ -13,8 +13,12 @@ A Windows desktop app that keeps selected Steam games in a "running" state simul
 ## Usage
 
 1. Launch `SteamIdlePicker.exe`
-2. Click **Load Library** to fetch your game list
+2. Click the refresh button to load your game list
 3. Check the games you want to idle (up to 32)
-4. Click **▶ Start Idling** — Steam will show them as "Playing"
-5. Click **■ Stop Idling** to stop
+4. Click the play button — Steam will show them as "Playing"
+5. Click the stop button to stop
 
+## Notes
+
+- Language (English / Japanese) and theme (Dark / Light) are detected automatically from Windows settings
+- The sort header accepts clicks to sort by idle status, name, or ID
