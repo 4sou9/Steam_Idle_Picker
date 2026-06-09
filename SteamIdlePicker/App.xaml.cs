@@ -1,8 +1,6 @@
 using System;
-using System.Drawing;
-using System.IO;
+using System.Threading;
 using System.Windows;
-using System.Windows.Forms;
 using Microsoft.Win32;
 using SteamIdlePicker.Services;
 using Application = System.Windows.Application;
@@ -13,12 +11,29 @@ public partial class App : Application
 {
     public static bool IsDarkMode { get; private set; }
 
-    private NotifyIcon? _notifyIcon;
-    private ToolStripMenuItem? _showItem;
-    private ToolStripMenuItem? _quitItem;
+    private static Mutex? _mutex;
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        bool createdNew;
+        try
+        {
+            _mutex = new Mutex(true, "SteamIdlePicker_SingleInstance", out createdNew);
+        }
+        catch (AbandonedMutexException ex)
+        {
+            _mutex = ex.Mutex;
+            createdNew = true;
+        }
+
+        if (!createdNew)
+        {
+            _mutex?.Dispose();
+            _mutex = null;
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         IsDarkMode = DetectDarkMode();
@@ -31,27 +46,6 @@ public partial class App : Application
         });
 
         LanguageService.Apply(lang);
-        LanguageService.LanguageChanged += OnLanguageChanged;
-
-        _showItem = new ToolStripMenuItem(LanguageService.Get("Str.TrayShow"), null, (_, _) => ShowMainWindow());
-        _quitItem = new ToolStripMenuItem(LanguageService.Get("Str.TrayQuit"), null, (_, _) => ExitApp());
-
-        var menu = new ContextMenuStrip();
-        menu.Items.Add(_showItem);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(_quitItem);
-
-        var iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "app.ico");
-        var icon = File.Exists(iconPath) ? new System.Drawing.Icon(iconPath) : SystemIcons.Application;
-
-        _notifyIcon = new NotifyIcon
-        {
-            Icon = icon,
-            Visible = true,
-            Text = "Steam Idle Picker",
-            ContextMenuStrip = menu
-        };
-        _notifyIcon.DoubleClick += (_, _) => ShowMainWindow();
 
         var mainWindow = new MainWindow();
         MainWindow = mainWindow;
@@ -76,30 +70,10 @@ public partial class App : Application
         return lang == "ja" ? "ja" : "en";
     }
 
-    private void OnLanguageChanged(object? sender, EventArgs e)
-    {
-        if (_showItem != null) _showItem.Text = LanguageService.Get("Str.TrayShow");
-        if (_quitItem != null) _quitItem.Text = LanguageService.Get("Str.TrayQuit");
-    }
-
-    private void ShowMainWindow()
-    {
-        MainWindow.Show();
-        MainWindow.WindowState = WindowState.Normal;
-        MainWindow.Activate();
-    }
-
-    private void ExitApp()
-    {
-        if (MainWindow is MainWindow mw)
-            mw.ViewModel.Cleanup();
-        _notifyIcon?.Dispose();
-        Shutdown();
-    }
-
     protected override void OnExit(ExitEventArgs e)
     {
-        _notifyIcon?.Dispose();
+        _mutex?.ReleaseMutex();
+        _mutex?.Dispose();
         base.OnExit(e);
     }
 }

@@ -11,8 +11,6 @@
     <sys:String x:Key="Str.LoadingLibrary">ライブラリを読み込み中...</sys:String>
     <sys:String x:Key="Str.LoadError">読み込みエラー: </sys:String>
     <sys:String x:Key="Str.NoCache">「ライブラリ読み込み」を押してゲーム一覧を取得してください</sys:String>
-    <sys:String x:Key="Str.TrayShow">表示</sys:String>
-    <sys:String x:Key="Str.TrayQuit">停止して終了</sys:String>
     <sys:String x:Key="Str.SortStatus">● 状態</sys:String>
     <sys:String x:Key="Str.SortName">名前</sys:String>
     <sys:String x:Key="Str.SortId">ID</sys:String>

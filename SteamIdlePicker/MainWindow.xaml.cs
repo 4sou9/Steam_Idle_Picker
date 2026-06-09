@@ -32,13 +32,6 @@ public partial class MainWindow : Window
         }
     }
 
-    protected override void OnStateChanged(EventArgs e)
-    {
-        if (WindowState == WindowState.Minimized)
-            Hide();
-        base.OnStateChanged(e);
-    }
-
     protected override void OnClosing(CancelEventArgs e)
     {
         ViewModel.Cleanup();
