@@ -3092,7 +3092,7 @@ dependencies = [
 
 [[package]]
 name = "steam-idle-picker"
-version = "0.1.0"
+version = "2.1.0"
 dependencies = [
  "chrono",
  "regex",
