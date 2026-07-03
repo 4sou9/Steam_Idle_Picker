@@ -1,5 +1,6 @@
 # Claude Code
 CLAUDE.md
+.claude/
 
 # Build outputs
 bin/
@@ -30,3 +31,14 @@ Desktop.ini
 
 # Dependencies
 Dependencies/Steamworks.NET.dll
+
+# Tauri / Rust
+/target/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/engine/
+
+# Node / Vite
+node_modules/
+/dist/
+*.tsbuildinfo

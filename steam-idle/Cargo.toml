@@ -1,0 +1,11 @@
+[package]
+name = "steam-idle"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "steam-idle"
+path = "src/main.rs"
+
+[dependencies]
+steamworks = "0.11"

@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = ["src-tauri", "steam-idle"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"

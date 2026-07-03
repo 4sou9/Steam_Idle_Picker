@@ -1,0 +1,389 @@
+@font-face {
+  font-family: "Segoe Fluent Icons";
+  src: local("Segoe Fluent Icons"), local("Segoe MDL2 Assets");
+}
+
+:root {
+  color-scheme: light dark;
+  --radius-control: 4px;
+  --radius-container: 8px;
+  --transition: 120ms ease;
+
+  --bg-window: rgba(32, 32, 32, 0.55);
+  --bg-card: #2b2b2b;
+  --bg-card-alt: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.08);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --accent: #0067c0;
+  --accent-hover: #1975c5;
+  --idle-green: #6ccb5f;
+  --hover: rgba(255, 255, 255, 0.06);
+  --pressed-opacity: 0.7;
+  --disabled-opacity: 0.35;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-window: rgba(243, 243, 243, 0.6);
+    --bg-card: #ffffff;
+    --bg-card-alt: rgba(0, 0, 0, 0.03);
+    --border: rgba(0, 0, 0, 0.08);
+    --text-primary: #1a1a1a;
+    --text-secondary: rgba(0, 0, 0, 0.55);
+    --idle-green: #2e8b2e;
+    --hover: rgba(0, 0, 0, 0.05);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Segoe UI Variable Text", "Segoe UI", "Yu Gothic UI", sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-window);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 8px 12px 12px;
+  gap: 6px;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  gap: 6px;
+}
+
+.search-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 34px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  transition: border-color var(--transition);
+}
+
+.search-box:focus-within {
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: -1px;
+}
+
+.search-box .icon {
+  font-family: "Segoe Fluent Icons";
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.search-box input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  height: 100%;
+}
+
+.search-box input::placeholder {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.icon-button {
+  width: 36px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe Fluent Icons";
+  font-size: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  transition: background var(--transition);
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.icon-button:active:not(:disabled) {
+  opacity: var(--pressed-opacity);
+}
+
+.icon-button:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+.icon-button.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Idle status ─────────────────────────────────────────────────────── */
+
+.idle-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--idle-green);
+  padding: 0 2px;
+}
+
+.idle-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--idle-green);
+}
+
+.idle-status strong {
+  font-weight: 600;
+}
+
+/* ── List panel ──────────────────────────────────────────────────────── */
+
+.list-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sort-header {
+  display: grid;
+  grid-template-columns: 28px 1fr 56px;
+  align-items: center;
+  padding: 3px 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+}
+
+.sort-header button {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 3px 7px;
+  border-radius: 3px;
+  transition: background var(--transition), color var(--transition);
+}
+
+.sort-header button:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.sort-status {
+  font-family: "Segoe Fluent Icons";
+  font-size: 16px !important;
+  color: var(--accent) !important;
+  justify-self: start;
+}
+
+.sort-name {
+  justify-self: start;
+}
+
+.sort-id {
+  justify-self: end;
+}
+
+.game-list {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-container) var(--radius-container);
+}
+
+.game-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.game-list::-webkit-scrollbar-thumb {
+  background: var(--text-secondary);
+  opacity: 0.4;
+  border-radius: 3px;
+}
+
+.game-list::-webkit-scrollbar-thumb:hover {
+  opacity: 0.7;
+}
+
+.status-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Rows ────────────────────────────────────────────────────────────── */
+
+.game-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 56px auto;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 4px;
+  margin: 2px;
+  transition: background var(--transition);
+}
+
+.game-row:hover {
+  background: var(--hover);
+}
+
+.game-row.selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe Fluent Icons";
+  font-size: 18px;
+  color: var(--text-secondary);
+}
+
+.checkbox.checked {
+  color: var(--accent);
+}
+
+.game-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.idling-icon {
+  font-family: "Segoe Fluent Icons";
+  font-size: 10px;
+  color: var(--idle-green);
+  flex-shrink: 0;
+}
+
+.name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-id {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
+  padding: 0 4px;
+}
+
+.small-button {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-secondary);
+  border-radius: 3px;
+  transition: background var(--transition), color var(--transition);
+}
+
+.small-button:hover {
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff6060;
+}
+
+/* ── Bottom bar ──────────────────────────────────────────────────────── */
+
+.bottom-bar {
+  display: flex;
+  align-items: center;
+}
+
+.bottom-bar .spacer {
+  flex: 1;
+}
+
+.primary-button {
+  width: 44px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe Fluent Icons";
+  font-size: 18px;
+  color: white;
+  background: var(--accent);
+  border-radius: var(--radius-control);
+  transition: background var(--transition), opacity var(--transition);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primary-button:active:not(:disabled) {
+  opacity: var(--pressed-opacity);
+}
+
+.primary-button:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+.primary-button.stop {
+  background: #c42b1c;
+}
+
+.primary-button.stop:hover:not(:disabled) {
+  background: #d13438;
+}
