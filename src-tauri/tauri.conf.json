@@ -19,10 +19,8 @@
         "minHeight": 400,
         "resizable": true,
         "center": true,
-        "transparent": true,
-        "windowEffects": {
-          "effects": ["mica"]
-        }
+        "decorations": false,
+        "shadow": true
       }
     ],
     "security": {

@@ -9,7 +9,7 @@
   --radius-container: 8px;
   --transition: 120ms ease;
 
-  --bg-window: rgba(32, 32, 32, 0.55);
+  --bg-window: #202020;
   --bg-card: #2b2b2b;
   --bg-card-alt: rgba(255, 255, 255, 0.04);
   --border: rgba(255, 255, 255, 0.08);
@@ -25,7 +25,7 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-window: rgba(243, 243, 243, 0.6);
+    --bg-window: #f3f3f3;
     --bg-card: #ffffff;
     --bg-card-alt: rgba(0, 0, 0, 0.03);
     --border: rgba(0, 0, 0, 0.08);
@@ -72,11 +72,73 @@ button {
   gap: 6px;
 }
 
+/* ── Titlebar ────────────────────────────────────────────────────────── */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  margin: -8px -12px 0;
+  padding-left: 12px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.titlebar-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+  margin-left: 6px;
+}
+
+.titlebar-button {
+  width: 44px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe Fluent Icons";
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.titlebar-button:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.titlebar-button.close:hover {
+  background: #c42b1c;
+  color: white;
+}
+
 /* ── Toolbar ─────────────────────────────────────────────────────────── */
 
 .toolbar {
   display: flex;
+  align-items: center;
   gap: 6px;
+  margin-top: 0;
+}
+
+.icon-button.primary {
+  color: var(--accent);
+}
+
+.icon-button.primary:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.icon-button.primary.stop {
+  color: #c42b1c;
 }
 
 .search-box {
@@ -126,8 +188,8 @@ button {
   justify-content: center;
   font-family: "Segoe Fluent Icons";
   font-size: 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--bg-window);
+  border: none;
   border-radius: var(--radius-control);
   transition: background var(--transition);
 }
@@ -149,6 +211,10 @@ button {
   animation: spin 1s linear infinite;
 }
 
+.icon-button.small {
+  font-size: 14px;
+}
+
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -158,28 +224,6 @@ button {
   }
 }
 
-/* ── Idle status ─────────────────────────────────────────────────────── */
-
-.idle-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--idle-green);
-  padding: 0 2px;
-}
-
-.idle-status .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--idle-green);
-}
-
-.idle-status strong {
-  font-weight: 600;
-}
-
 /* ── List panel ──────────────────────────────────────────────────────── */
 
 .list-panel {
@@ -187,6 +231,7 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  margin-top: 2px;
 }
 
 .sort-header {
@@ -213,18 +258,13 @@ button {
   color: var(--text-primary);
 }
 
-.sort-status {
-  font-family: "Segoe Fluent Icons";
-  font-size: 16px !important;
-  color: var(--accent) !important;
-  justify-self: start;
-}
-
 .sort-name {
+  grid-column: 2;
   justify-self: start;
 }
 
 .sort-id {
+  grid-column: 3;
   justify-self: end;
 }
 
@@ -267,7 +307,7 @@ button {
 
 .game-row {
   display: grid;
-  grid-template-columns: 28px 1fr 56px auto;
+  grid-template-columns: 28px 1fr 56px;
   align-items: center;
   padding: 5px 6px;
   border-radius: 4px;
@@ -325,65 +365,15 @@ button {
   padding: 0 4px;
 }
 
-.small-button {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
+/* ── Footer ──────────────────────────────────────────────────────────── */
+
+.footer {
+  font-size: 12px;
   color: var(--text-secondary);
-  border-radius: 3px;
-  transition: background var(--transition), color var(--transition);
+  padding: 2px 2px 0;
 }
 
-.small-button:hover {
-  background: rgba(255, 68, 68, 0.2);
-  color: #ff6060;
-}
-
-/* ── Bottom bar ──────────────────────────────────────────────────────── */
-
-.bottom-bar {
-  display: flex;
-  align-items: center;
-}
-
-.bottom-bar .spacer {
-  flex: 1;
-}
-
-.primary-button {
-  width: 44px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: "Segoe Fluent Icons";
-  font-size: 18px;
-  color: white;
-  background: var(--accent);
-  border-radius: var(--radius-control);
-  transition: background var(--transition), opacity var(--transition);
-}
-
-.primary-button:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.primary-button:active:not(:disabled) {
-  opacity: var(--pressed-opacity);
-}
-
-.primary-button:disabled {
-  opacity: var(--disabled-opacity);
-  cursor: default;
-}
-
-.primary-button.stop {
-  background: #c42b1c;
-}
-
-.primary-button.stop:hover:not(:disabled) {
-  background: #d13438;
+.footer strong {
+  color: var(--text-primary);
+  font-weight: 600;
 }

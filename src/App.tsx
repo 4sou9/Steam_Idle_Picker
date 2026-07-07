@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { detectLanguage, getStrings } from "./i18n/strings";
 import type { AppSettings, SortMode, SteamGame } from "./types";
+import Titlebar from "./Titlebar";
 import "./styles/app.css";
 
 const MAX_SELECTION = 32;
@@ -100,11 +101,6 @@ export default function App() {
     [isIdling, persistSelection]
   );
 
-  const clearSelection = useCallback(() => {
-    setSelectedIds(new Set());
-    persistSelection(new Set());
-  }, [persistSelection]);
-
   // ── Idle start/stop ──────────────────────────────────────────────────
   const startIdling = useCallback(async () => {
     const started = new Set<number>();
@@ -124,25 +120,6 @@ export default function App() {
     if (isIdling) void stopAllIdling();
     else void startIdling();
   }, [isIdling, startIdling, stopAllIdling]);
-
-  const stopSingle = useCallback(
-    async (appId: number) => {
-      await api.stopIdle(appId);
-      setIdlingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(appId);
-        return next;
-      });
-      setSelectedIds((prev) => {
-        if (!prev.has(appId)) return prev;
-        const next = new Set(prev);
-        next.delete(appId);
-        persistSelection(next);
-        return next;
-      });
-    },
-    [persistSelection]
-  );
 
   // ── Refresh ──────────────────────────────────────────────────────────
   const refreshLibrary = useCallback(async () => {
@@ -188,21 +165,38 @@ export default function App() {
       case "id":
         sorted.sort((a, b) => a.AppId - b.AppId);
         break;
-      case "status":
-        sorted.sort((a, b) => Number(idlingIds.has(b.AppId)) - Number(idlingIds.has(a.AppId)));
-        break;
       default:
         break;
     }
     if (!sortAscending && sortMode !== "none") sorted.reverse();
+    sorted.sort((a, b) => Number(selectedIds.has(b.AppId)) - Number(selectedIds.has(a.AppId)));
     return sorted;
-  }, [games, searchText, sortMode, sortAscending, idlingIds]);
+  }, [games, searchText, sortMode, sortAscending, selectedIds]);
 
   const selectedCount = selectedIds.size;
   const idlingCount = idlingIds.size;
 
   return (
     <div className="app">
+      <Titlebar>
+        <button
+          className={"icon-button primary" + (isIdling ? " stop" : "")}
+          onClick={toggleIdle}
+          disabled={!isIdling && selectedCount === 0}
+          title={isIdling ? t.IdleStop : t.IdleStart}
+        >
+          {isIdling ? "" : ""}
+        </button>
+        <button
+          className={"icon-button small" + (isRefreshing ? " spinning" : "")}
+          onClick={() => void refreshLibrary()}
+          disabled={isRefreshing}
+          title={t.RefreshLibrary}
+        >
+          &#xE72C;
+        </button>
+      </Titlebar>
+
       <div className="toolbar">
         <div className="search-box">
           <span className="icon">&#xE721;</span>
@@ -212,34 +206,10 @@ export default function App() {
             placeholder={t.SearchPlaceholder}
           />
         </div>
-        <button
-          className={"icon-button" + (isRefreshing ? " spinning" : "")}
-          onClick={() => void refreshLibrary()}
-          disabled={isRefreshing}
-          title={t.RefreshLibrary}
-        >
-          &#xE72C;
-        </button>
       </div>
-
-      {isIdling && (
-        <div className="idle-status">
-          <span className="dot" />
-          <span>
-            {t.IdlingPrefix}
-            <strong>
-              {idlingCount}/{MAX_SELECTION}
-            </strong>
-            {t.IdlingGames}
-          </span>
-        </div>
-      )}
 
       <div className="list-panel">
         <div className="sort-header">
-          <button className="sort-status" onClick={() => toggleSort("status")} title={t.SortStatus}>
-            &#xE73A;
-          </button>
           <button className="sort-name" onClick={() => toggleSort("name")}>
             {t.SortName}
             {sortIcon(sortMode === "name", sortAscending)}
@@ -258,26 +228,18 @@ export default function App() {
               selected={selectedIds.has(game.AppId)}
               idling={idlingIds.has(game.AppId)}
               onToggle={toggleSelected}
-              onStop={stopSingle}
             />
           ))}
           {statusMessage && <div className="status-overlay">{statusMessage}</div>}
         </div>
       </div>
 
-      <div className="bottom-bar">
-        <button className="icon-button" onClick={clearSelection} title={t.ClearAll}>
-          &#xE894;
-        </button>
-        <div className="spacer" />
-        <button
-          className={"primary-button" + (isIdling ? " stop" : "")}
-          onClick={toggleIdle}
-          disabled={!isIdling && selectedCount === 0}
-          title={isIdling ? t.IdleStop : t.IdleStart}
-        >
-          {isIdling ? "" : ""}
-        </button>
+      <div className="footer">
+        {t.StatusLabel}
+        <strong>
+          {idlingCount}/{MAX_SELECTION}
+        </strong>
+        {t.StatusRunning}
       </div>
     </div>
   );
@@ -288,13 +250,11 @@ function GameRow({
   selected,
   idling,
   onToggle,
-  onStop,
 }: {
   game: SteamGame;
   selected: boolean;
   idling: boolean;
   onToggle: (appId: number, checked: boolean) => void;
-  onStop: (appId: number) => void;
 }) {
   return (
     <div className={"game-row" + (selected ? " selected" : "")}>
@@ -310,11 +270,6 @@ function GameRow({
         <span className="name-text">{game.Name}</span>
       </div>
       <span className="app-id">{game.AppId}</span>
-      {idling && (
-        <button className="small-button" onClick={() => onStop(game.AppId)}>
-          &#xE71A;
-        </button>
-      )}
     </div>
   );
 }
