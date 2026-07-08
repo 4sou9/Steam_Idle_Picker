@@ -2,7 +2,7 @@
 
 A Windows desktop app that keeps selected Steam games in a "running" state simultaneously.
 
-![Screenshot](screenshot.png)
+![Screenshot](01.png)
 
 ## Requirements
 
