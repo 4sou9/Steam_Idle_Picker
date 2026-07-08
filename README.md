@@ -12,20 +12,23 @@ A Windows desktop app that keeps selected Steam games in a "running" state simul
 ## Usage
 
 1. Launch `Steam Idle Picker.exe`
-2. Click the refresh button to load your game list
-3. Check the games you want to idle (up to 32)
+2. Click the refresh button in the header to load your game list
+3. Check the games you want to idle (up to 32) — checked games stay pinned to the top of the list
 4. Click the play button — Steam will show them as "Playing"
-5. Click the stop button to stop
+5. Click the same button (now a stop icon) to stop all idling
+6. Uncheck a game to stop idling it individually
+
+The status footer always shows how many games are currently idling out of the 32 max.
 
 ## Notes
 
 - Language (English / Japanese) and theme (Dark / Light) are detected automatically from Windows settings
-- The sort header accepts clicks to sort by idle status, name, or ID
+- Click "Name" or "AppID" in the list header to sort; click again to reverse
+- The title bar is custom-drawn (no native Windows chrome) — drag it to move the window, and use the minimize/maximize/close buttons on the right
 
 ## Development
 
-Built with [Tauri 2](https://tauri.app) (Rust) + React/TypeScript. See
-[docs/TAURI_REWRITE_SPEC.md](docs/TAURI_REWRITE_SPEC.md) for the architecture.
+Built with [Tauri 2](https://tauri.app) (Rust) + React/TypeScript.
 
 ```bash
 npm install
