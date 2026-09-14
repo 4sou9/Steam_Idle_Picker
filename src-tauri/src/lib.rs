@@ -1,6 +1,7 @@
 mod commands;
 mod idle_manager;
 mod models;
+mod process_guard;
 mod services;
 mod steam_client;
 
@@ -21,7 +22,10 @@ pub fn run() {
                 .path()
                 .resource_dir()
                 .unwrap_or_else(|_| std::env::current_exe().unwrap().parent().unwrap().to_path_buf());
-            app.manage(IdleManager::new(resource_dir));
+            services::storage::migrate_legacy_data();
+            let idle_manager = IdleManager::new(resource_dir);
+            idle_manager.kill_orphans();
+            app.manage(idle_manager);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -38,8 +42,11 @@ pub fn run() {
             commands::stop_all,
             commands::is_idling,
             commands::get_idling_ids,
+            commands::take_idle_failures,
             commands::load_settings,
             commands::save_settings,
+            commands::open_steam_store,
+            commands::open_steam_library,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -3088,6 +3088,7 @@ name = "steam-idle"
 version = "0.1.0"
 dependencies = [
  "steamworks",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

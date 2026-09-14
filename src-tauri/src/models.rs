@@ -22,6 +22,16 @@ pub struct AppSettings {
     pub language: String,
     #[serde(rename = "SelectedGames")]
     pub selected_games: Vec<u32>,
+    /// Independent of the selection; IDs missing from the list are kept.
+    #[serde(rename = "Favorites", default)]
+    pub favorites: Vec<u32>,
+    /// "all" | "favorites" | "idling"
+    #[serde(rename = "Filter", default = "default_filter")]
+    pub filter: String,
+}
+
+fn default_filter() -> String {
+    "all".into()
 }
 
 impl Default for AppSettings {
@@ -29,6 +39,8 @@ impl Default for AppSettings {
         Self {
             language: "ja".into(),
             selected_games: Vec::new(),
+            favorites: Vec::new(),
+            filter: default_filter(),
         }
     }
 }

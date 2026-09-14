@@ -9,3 +9,8 @@ path = "src/main.rs"
 
 [dependencies]
 steamworks = "0.11"
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Threading",
+] }

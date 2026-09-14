@@ -79,6 +79,11 @@ impl SteamLoader {
                 ),
             )
         };
+        // SetDllDirectoryW is process-wide; restore the default search order so later
+        // DLL loads in this app (WebView2 etc.) are not resolved from the Steam folder.
+        unsafe {
+            let _ = SetDllDirectoryW(PCWSTR::null());
+        }
 
         let Ok(handle) = handle else {
             return false;

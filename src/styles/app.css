@@ -18,6 +18,8 @@
   --accent: #0067c0;
   --accent-hover: #1975c5;
   --idle-green: #6ccb5f;
+  --favorite: #f7c948;
+  --warn: #fce100;
   --hover: rgba(255, 255, 255, 0.06);
   --pressed-opacity: 0.7;
   --disabled-opacity: 0.35;
@@ -32,6 +34,8 @@
     --text-primary: #1a1a1a;
     --text-secondary: rgba(0, 0, 0, 0.55);
     --idle-green: #2e8b2e;
+    --favorite: #c98a00;
+    --warn: #9d5d00;
     --hover: rgba(0, 0, 0, 0.05);
   }
 }
@@ -180,6 +184,53 @@ button {
   font-size: 12px;
 }
 
+.search-clear {
+  width: 24px;
+  height: 24px;
+  margin-right: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: "Segoe Fluent Icons";
+  font-size: 10px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-control);
+  transition: background var(--transition), color var(--transition);
+}
+
+.search-clear:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.search-clear:active {
+  opacity: var(--pressed-opacity);
+}
+
+.filter-select {
+  height: 34px;
+  min-width: 104px;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  outline: none;
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  border-bottom: 2px solid var(--accent);
+}
+
+.filter-select option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
 .icon-button {
   width: 36px;
   height: 34px;
@@ -236,9 +287,11 @@ button {
 
 .sort-header {
   display: grid;
-  grid-template-columns: 28px 1fr 56px;
+  grid-template-columns: 28px 24px 1fr 56px;
   align-items: center;
-  padding: 3px 6px;
+  /* Match the rows: row margin (2px) + row padding (6px), plus the list's
+     scrollbar gutter (6px) on the right, so the columns line up. */
+  padding: 3px 14px 3px 8px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-bottom: none;
@@ -259,12 +312,12 @@ button {
 }
 
 .sort-name {
-  grid-column: 2;
+  grid-column: 3;
   justify-self: start;
 }
 
 .sort-id {
-  grid-column: 3;
+  grid-column: 4;
   justify-self: end;
 }
 
@@ -272,6 +325,8 @@ button {
   position: relative;
   flex: 1;
   overflow-y: auto;
+  /* Keep the gutter even when the list is short, so header alignment never shifts. */
+  scrollbar-gutter: stable;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 0 0 var(--radius-container) var(--radius-container);
@@ -307,7 +362,7 @@ button {
 
 .game-row {
   display: grid;
-  grid-template-columns: 28px 1fr 56px;
+  grid-template-columns: 28px 24px 1fr 56px;
   align-items: center;
   padding: 5px 6px;
   border-radius: 4px;
@@ -338,6 +393,28 @@ button {
   color: var(--accent);
 }
 
+.fav-button {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe Fluent Icons";
+  font-size: 14px;
+  color: var(--text-secondary);
+  visibility: hidden;
+}
+
+.game-row:hover .fav-button,
+.fav-button.on {
+  visibility: visible;
+}
+
+.fav-button:hover,
+.fav-button.on {
+  color: var(--favorite);
+}
+
 .game-name {
   display: flex;
   align-items: center;
@@ -362,18 +439,63 @@ button {
   font-size: 11px;
   color: var(--text-secondary);
   text-align: right;
-  padding: 0 4px;
+  padding: 0 7px; /* same inset as the sort button text */
 }
 
 /* ── Footer ──────────────────────────────────────────────────────────── */
 
 .footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-size: 12px;
   color: var(--text-secondary);
   padding: 2px 2px 0;
 }
 
+.footer-status {
+  flex-shrink: 0;
+}
+
+.footer-info {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--warn);
+}
+
 .footer strong {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+/* ── Context menu ────────────────────────────────────────────────────── */
+
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 180px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.context-menu-item {
+  text-align: left;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  white-space: nowrap;
+  transition: background var(--transition);
+}
+
+.context-menu-item:hover {
+  background: var(--hover);
 }

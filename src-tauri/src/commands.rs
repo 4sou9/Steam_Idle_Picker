@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::idle_manager::IdleManager;
+use crate::idle_manager::{IdleFailure, IdleManager};
 use crate::models::{AppSettings, FetchResult, GameCache};
 use crate::services::storage;
 
@@ -41,6 +41,12 @@ pub fn get_idling_ids(state: State<IdleManager>) -> Vec<u32> {
     state.get_idling_ids()
 }
 
+/// Helpers that ended on their own since the last call (failed to start, Steam closed).
+#[tauri::command]
+pub fn take_idle_failures(state: State<IdleManager>) -> Vec<IdleFailure> {
+    state.take_failures()
+}
+
 #[tauri::command]
 pub fn load_settings() -> AppSettings {
     storage::load_settings()
@@ -49,4 +55,23 @@ pub fn load_settings() -> AppSettings {
 #[tauri::command]
 pub fn save_settings(settings: AppSettings) {
     storage::save_settings(&settings);
+}
+
+/// Opens a URL built here from the AppID, so arbitrary URLs cannot be opened.
+fn open_with_shell(url: String) -> Result<(), String> {
+    std::process::Command::new("explorer.exe")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_steam_store(app_id: u32) -> Result<(), String> {
+    open_with_shell(format!("https://store.steampowered.com/app/{app_id}/"))
+}
+
+#[tauri::command]
+pub fn open_steam_library(app_id: u32) -> Result<(), String> {
+    open_with_shell(format!("steam://nav/games/details/{app_id}"))
 }
