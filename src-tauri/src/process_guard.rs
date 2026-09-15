@@ -6,10 +6,7 @@ use std::os::windows::io::AsRawHandle;
 use std::path::Path;
 use std::process::Child;
 
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
-use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
-};
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
@@ -61,69 +58,44 @@ impl Job {
 /// Job Object existed). Only processes whose image is exactly `helper_exe` are
 /// touched. Returns how many were terminated.
 pub fn kill_orphans(helper_exe: &Path) -> usize {
-    let Some(file_name) = helper_exe.file_name().map(|n| n.to_string_lossy().to_lowercase()) else {
+    let Some(file_name) = helper_exe.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+        return 0;
+    };
+    let Some(processes) = win_process::processes() else {
         return 0;
     };
     let target = normalize(&helper_exe.to_string_lossy());
     let mut killed = 0;
 
-    unsafe {
-        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if snapshot == INVALID_HANDLE_VALUE {
-            return 0;
+    for process in processes {
+        if !process.exe_name.eq_ignore_ascii_case(&file_name) || process.pid == std::process::id() {
+            continue;
         }
-        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
-        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-
-        let mut ok = Process32FirstW(snapshot, &mut entry) != 0;
-        while ok {
-            let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-            let name = String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase();
-            if name == file_name && entry.th32ProcessID != std::process::id() {
-                let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, 0, entry.th32ProcessID);
-                if !process.is_null() {
-                    let mut buf = [0u16; 32768];
-                    let mut size = buf.len() as u32;
-                    if QueryFullProcessImageNameW(process, 0, buf.as_mut_ptr(), &mut size) != 0
-                        && normalize(&String::from_utf16_lossy(&buf[..size as usize])) == target
-                        && TerminateProcess(process, 1) != 0
-                    {
-                        killed += 1;
-                    }
-                    CloseHandle(process);
-                }
+        unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, 0, process.pid);
+            if handle.is_null() {
+                continue;
             }
-            ok = Process32NextW(snapshot, &mut entry) != 0;
+            let mut buf = [0u16; 32768];
+            let mut size = buf.len() as u32;
+            if QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut size) != 0
+                && normalize(&String::from_utf16_lossy(&buf[..size as usize])) == target
+                && TerminateProcess(handle, 1) != 0
+            {
+                killed += 1;
+            }
+            CloseHandle(handle);
         }
-        CloseHandle(snapshot);
     }
     killed
 }
 
-/// Whether steam.exe is running.
+/// Whether steam.exe is running. Reports "not running" when the process list cannot
+/// be read, which only affects how a helper failure is described.
 pub fn is_steam_running() -> bool {
-    unsafe {
-        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if snapshot == INVALID_HANDLE_VALUE {
-            return false;
-        }
-        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
-        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-        let mut found = false;
-        let mut ok = Process32FirstW(snapshot, &mut entry) != 0;
-        while ok {
-            let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-            if String::from_utf16_lossy(&entry.szExeFile[..len]).eq_ignore_ascii_case("steam.exe") {
-                found = true;
-                break;
-            }
-            ok = Process32NextW(snapshot, &mut entry) != 0;
-        }
-        CloseHandle(snapshot);
-        found
-    }
+    win_process::is_running("steam.exe").unwrap_or(false)
 }
 
 fn normalize(path: &str) -> String {
-    path.trim_start_matches(r"\\?\").replace('/', "\\").to_lowercase()
+    path.trim_start_matches(r"\?\").replace('/', "\\").to_lowercase()
 }

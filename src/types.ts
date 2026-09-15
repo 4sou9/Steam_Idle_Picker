@@ -11,7 +11,6 @@ export interface GameCache {
 export type FilterMode = "all" | "favorites" | "idling";
 
 export interface AppSettings {
-  Language: string;
   SelectedGames: number[];
   Favorites: number[];
   Filter: FilterMode;
@@ -19,8 +18,6 @@ export interface AppSettings {
 
 export interface FetchResult {
   cache: GameCache;
-  installedCount: number;
-  resolvedCount: number;
   connected: boolean;
 }
 
@@ -31,4 +28,4 @@ export interface IdleFailure {
   reason: FailureReason;
 }
 
-export type SortMode = "none" | "status" | "name" | "id";
+export type SortMode = "none" | "name" | "id";

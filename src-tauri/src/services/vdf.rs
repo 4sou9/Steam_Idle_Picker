@@ -1,28 +1,33 @@
 // Minimal recursive VDF (Valve KeyValues) parser — mirrors VdfParser.cs.
-// Only handles the subset needed to read localconfig.vdf: nested `"key" { ... }`
-// sections and `"key" "value"` leaves, with `//` line comments.
+// Handles the subset used by Steam's text files (localconfig.vdf, libraryfolders.vdf,
+// appmanifest_*.acf): nested `"key" { ... }` sections and `"key" "value"` leaves, with
+// `//` line comments and backslash escapes.
 
 use std::collections::HashMap;
 
+#[derive(Default)]
 pub struct VdfNode {
     pub children: HashMap<String, VdfNode>,
+    /// Set for `"key" "value"` leaves, `None` for sections.
+    pub value: Option<String>,
 }
 
 impl VdfNode {
-    fn new() -> Self {
-        Self {
-            children: HashMap::new(),
-        }
-    }
-
+    /// Child lookup; VDF keys are case-insensitive.
     pub fn get(&self, key: &str) -> Option<&VdfNode> {
         self.children
-            .iter()
-            .find(|(k, _)| k.eq_ignore_ascii_case(key))
-            .map(|(_, v)| v)
+            .get(key)
+            .or_else(|| self.children.iter().find(|(k, _)| k.eq_ignore_ascii_case(key)).map(|(_, v)| v))
+    }
+
+    /// Value of the leaf child `key`.
+    pub fn value_of(&self, key: &str) -> Option<&str> {
+        self.get(key)?.value.as_deref()
     }
 }
 
+/// Parses a document and returns the root key's section (the root key itself, e.g.
+/// `"AppState"`, is skipped).
 pub fn parse(content: &str) -> VdfNode {
     let chars: Vec<char> = content.chars().collect();
     let mut pos = 0usize;
@@ -33,7 +38,7 @@ pub fn parse(content: &str) -> VdfNode {
 }
 
 fn parse_section(chars: &[char], pos: &mut usize) -> VdfNode {
-    let mut node = VdfNode::new();
+    let mut node = VdfNode::default();
     if *pos < chars.len() && chars[*pos] == '{' {
         *pos += 1;
     }
@@ -56,8 +61,14 @@ fn parse_section(chars: &[char], pos: &mut usize) -> VdfNode {
         if *pos < chars.len() && chars[*pos] == '{' {
             node.children.insert(key, parse_section(chars, pos));
         } else if *pos < chars.len() && chars[*pos] == '"' {
-            let _value = read_string(chars, pos); // leaf value not needed by callers
-            node.children.insert(key, VdfNode::new());
+            let value = read_string(chars, pos);
+            node.children.insert(
+                key,
+                VdfNode {
+                    value: Some(value),
+                    ..VdfNode::default()
+                },
+            );
         } else {
             break;
         }
@@ -105,5 +116,43 @@ fn skip_whitespace(chars: &[char], pos: &mut usize) {
             continue;
         }
         break;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_nested_sections_and_values() {
+        let root = parse(
+            r#"
+            // comment
+            "Root"
+            {
+                "Section"
+                {
+                    "Key"    "Value"
+                }
+                "Leaf"   "x"
+            }
+            "#,
+        );
+        assert_eq!(root.get("section").and_then(|s| s.value_of("key")), Some("Value"));
+        assert_eq!(root.value_of("Leaf"), Some("x"));
+        assert!(root.get("Section").unwrap().value.is_none());
+    }
+
+    #[test]
+    fn unescapes_strings() {
+        let root = parse(r#""Root" { "name" "Say \"hi\"" "path" "C:\\Games\\Steam" }"#);
+        assert_eq!(root.value_of("name"), Some(r#"Say "hi""#));
+        assert_eq!(root.value_of("path"), Some(r"C:\Games\Steam"));
+    }
+
+    #[test]
+    fn tolerates_truncated_input() {
+        let root = parse(r#""Root" { "a" { "b" "1""#);
+        assert_eq!(root.get("a").and_then(|a| a.value_of("b")), Some("1"));
     }
 }

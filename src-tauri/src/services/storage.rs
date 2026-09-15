@@ -94,7 +94,7 @@ pub fn save_settings(settings: &AppSettings) {
 /// called from a spawn_blocking context since it touches the filesystem/registry
 /// and may talk to steamclient64.dll.
 pub fn fetch_and_cache_library() -> FetchResult {
-    let (mut games, installed_count, resolved_count, connected) = steam_library::fetch_local_library();
+    let (mut games, connected) = steam_library::fetch_local_library();
 
     // Without a Steam connection only installed games can be named. Keep the rest of
     // the previous list instead of shrinking it to the installed games.
@@ -111,10 +111,5 @@ pub fn fetch_and_cache_library() -> FetchResult {
     };
     save_cache(&cache);
 
-    FetchResult {
-        cache,
-        installed_count: installed_count as u32,
-        resolved_count: resolved_count as u32,
-        connected,
-    }
+    FetchResult { cache, connected }
 }

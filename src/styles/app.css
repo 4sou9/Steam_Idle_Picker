@@ -496,6 +496,8 @@ button {
   transition: background var(--transition);
 }
 
-.context-menu-item:hover {
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
   background: var(--hover);
+  outline: none;
 }

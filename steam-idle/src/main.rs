@@ -5,10 +5,6 @@ use std::env;
 use std::thread;
 use std::time::Duration;
 
-use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
-use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
-};
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, TerminateProcess};
 
 /// Exit codes read by the app (src-tauri/src/idle_manager.rs).
@@ -24,10 +20,8 @@ fn main() {
         None => std::process::exit(EXIT_INIT_FAILED),
     };
 
-    // Steamworks reads SteamAppId from the environment when initializing.
-    env::set_var("SteamAppId", appid.to_string());
-
     // Fails when Steam is not running or the account does not own the app.
+    // `init_app` sets SteamAppId in the environment itself.
     let (_client, single) = match steamworks::Client::init_app(appid) {
         Ok(pair) => pair,
         Err(_) => std::process::exit(EXIT_INIT_FAILED),
@@ -39,7 +33,8 @@ fn main() {
     // the Steamworks calls below (and a normal exit's DLL teardown) can block.
     thread::spawn(|| loop {
         thread::sleep(STEAM_CHECK_INTERVAL);
-        if !is_steam_running() {
+        // If the process list cannot be read, keep idling rather than stopping by mistake.
+        if !win_process::is_running("steam.exe").unwrap_or(true) {
             unsafe {
                 TerminateProcess(GetCurrentProcess(), EXIT_STEAM_CLOSED as u32);
             }
@@ -49,29 +44,5 @@ fn main() {
     loop {
         single.run_callbacks();
         thread::sleep(Duration::from_secs(1));
-    }
-}
-
-fn is_steam_running() -> bool {
-    unsafe {
-        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if snapshot == INVALID_HANDLE_VALUE {
-            // Cannot tell; keep idling rather than stopping by mistake.
-            return true;
-        }
-        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
-        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-        let mut found = false;
-        let mut ok = Process32FirstW(snapshot, &mut entry) != 0;
-        while ok {
-            let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-            if String::from_utf16_lossy(&entry.szExeFile[..len]).eq_ignore_ascii_case("steam.exe") {
-                found = true;
-                break;
-            }
-            ok = Process32NextW(snapshot, &mut entry) != 0;
-        }
-        CloseHandle(snapshot);
-        found
     }
 }

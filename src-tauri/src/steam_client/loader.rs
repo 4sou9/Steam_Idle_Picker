@@ -1,13 +1,13 @@
 use std::ffi::{c_void, CString};
 use std::path::PathBuf;
 
-use windows::core::PCWSTR;
-use windows::Win32::Foundation::HMODULE;
-use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryExW, SetDllDirectoryW};
+use windows_sys::Win32::Foundation::{ERROR_SUCCESS, HMODULE};
+use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryExW, LOAD_WITH_ALTERED_SEARCH_PATH};
+use windows_sys::Win32::System::Registry::{
+    RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+};
 
 use super::native::NativeInterface;
-
-const LOAD_WITH_ALTERED_SEARCH_PATH: u32 = 0x8;
 
 type CreateInterfaceFn = unsafe extern "C" fn(*const i8, *mut i32) -> *mut c_void;
 
@@ -20,23 +20,73 @@ fn to_wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
+/// Reads a REG_SZ value.
+fn read_reg_string(root: HKEY, subkey: &str, value: &str) -> Option<String> {
+    let subkey = to_wide(subkey);
+    let value = to_wide(value);
+    unsafe {
+        let mut size = 0u32;
+        let status = RegGetValueW(
+            root,
+            subkey.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &mut size,
+        );
+        if status != ERROR_SUCCESS || size == 0 {
+            return None;
+        }
+        let mut buf = vec![0u16; (size as usize).div_ceil(2)];
+        let status = RegGetValueW(
+            root,
+            subkey.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            buf.as_mut_ptr() as *mut c_void,
+            &mut size,
+        );
+        if status != ERROR_SUCCESS {
+            return None;
+        }
+        let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        Some(String::from_utf16_lossy(&buf[..len]))
+    }
+}
+
+/// Reads a REG_DWORD value.
+fn read_reg_dword(root: HKEY, subkey: &str, value: &str) -> Option<u32> {
+    let subkey = to_wide(subkey);
+    let value = to_wide(value);
+    let mut data = 0u32;
+    let mut size = std::mem::size_of::<u32>() as u32;
+    let status = unsafe {
+        RegGetValueW(
+            root,
+            subkey.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_DWORD,
+            std::ptr::null_mut(),
+            &mut data as *mut u32 as *mut c_void,
+            &mut size,
+        )
+    };
+    (status == ERROR_SUCCESS).then_some(data)
+}
+
 /// Reads the Steam install path from the registry, matching SteamLoader.cs.
 pub fn get_install_path() -> Option<PathBuf> {
-    use winreg::enums::HKEY_LOCAL_MACHINE;
-    use winreg::RegKey;
+    read_reg_string(HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath")
+        .or_else(|| read_reg_string(HKEY_LOCAL_MACHINE, r"SOFTWARE\Valve\Steam", "InstallPath"))
+        .map(PathBuf::from)
+}
 
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let path: Option<String> = hklm
-        .open_subkey(r"SOFTWARE\WOW6432Node\Valve\Steam")
-        .and_then(|k| k.get_value("InstallPath"))
-        .ok()
-        .or_else(|| {
-            hklm.open_subkey(r"SOFTWARE\Valve\Steam")
-                .and_then(|k| k.get_value("InstallPath"))
-                .ok()
-        });
-
-    path.map(PathBuf::from)
+/// Account ID (the `userdata` folder name) of the user logged in to the running Steam
+/// client, or `None` when nobody is logged in.
+pub fn get_active_user() -> Option<u32> {
+    read_reg_dword(HKEY_CURRENT_USER, r"Software\Valve\Steam\ActiveProcess", "ActiveUser").filter(|&id| id != 0)
 }
 
 impl SteamLoader {
@@ -56,45 +106,23 @@ impl SteamLoader {
             return false;
         };
 
-        let bin_dir = path.join("bin");
-        let search_path = format!("{};{}", path.display(), bin_dir.display());
-        unsafe {
-            let _ = SetDllDirectoryW(PCWSTR(to_wide(&search_path).as_ptr()));
-        }
-
         let dll_name = if cfg!(target_pointer_width = "64") {
             "steamclient64.dll"
         } else {
             "steamclient.dll"
         };
-        let dll_path = path.join(dll_name);
-        let wide_path = to_wide(&dll_path.to_string_lossy());
+        let wide_path = to_wide(&path.join(dll_name).to_string_lossy());
 
-        let handle = unsafe {
-            LoadLibraryExW(
-                PCWSTR(wide_path.as_ptr()),
-                None,
-                windows::Win32::System::LibraryLoader::LOAD_LIBRARY_FLAGS(
-                    LOAD_WITH_ALTERED_SEARCH_PATH,
-                ),
-            )
-        };
-        // SetDllDirectoryW is process-wide; restore the default search order so later
-        // DLL loads in this app (WebView2 etc.) are not resolved from the Steam folder.
-        unsafe {
-            let _ = SetDllDirectoryW(PCWSTR::null());
-        }
-
-        let Ok(handle) = handle else {
-            return false;
-        };
-        if handle.is_invalid() {
+        // LOAD_WITH_ALTERED_SEARCH_PATH resolves steamclient's own dependencies
+        // (tier0_s64.dll, vstdlib_s64.dll, ...) from the Steam folder, without touching
+        // the process-wide DLL search path.
+        let handle = unsafe { LoadLibraryExW(wide_path.as_ptr(), std::ptr::null_mut(), LOAD_WITH_ALTERED_SEARCH_PATH) };
+        if handle.is_null() {
             return false;
         }
 
         let proc_name = CString::new("CreateInterface").unwrap();
-        let proc = unsafe { GetProcAddress(handle, windows::core::PCSTR(proc_name.as_ptr() as *const u8)) };
-        let Some(proc) = proc else {
+        let Some(proc) = (unsafe { GetProcAddress(handle, proc_name.as_ptr() as *const u8) }) else {
             return false;
         };
 

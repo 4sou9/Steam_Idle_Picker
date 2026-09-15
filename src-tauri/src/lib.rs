@@ -13,15 +13,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
+                // Restore first: focusing a minimized window does not bring it up.
                 let _ = window.unminimize();
+                let _ = window.set_focus();
             }
         }))
         .setup(|app| {
-            let resource_dir = app
-                .path()
-                .resource_dir()
-                .unwrap_or_else(|_| std::env::current_exe().unwrap().parent().unwrap().to_path_buf());
+            let resource_dir = app.path().resource_dir()?;
             services::storage::migrate_legacy_data();
             let idle_manager = IdleManager::new(resource_dir);
             idle_manager.kill_orphans();

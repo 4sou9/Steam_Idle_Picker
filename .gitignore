@@ -2,25 +2,6 @@
 CLAUDE.md
 .claude/
 
-# Build outputs
-bin/
-obj/
-
-# Visual Studio
-.vs/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
-
-# Rider
-.idea/
-
-# NuGet
-*.nupkg
-packages/
-project.lock.json
-
 # OS
 Thumbs.db
 Desktop.ini
@@ -28,9 +9,6 @@ Desktop.ini
 
 # Logs (デバッグ用一時ファイル)
 *.log
-
-# Dependencies
-Dependencies/Steamworks.NET.dll
 
 # Tauri / Rust
 /target/

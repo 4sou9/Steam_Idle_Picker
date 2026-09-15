@@ -18,8 +18,25 @@ execFileSync("cargo", ["build", "--release", "-p", "steam-idle"], {
 
 mkdirSync(engineDir, { recursive: true });
 
+// steam-idle links against the SDK bundled with steamworks-sys, so ship the DLL from
+// that same SDK. A DLL from another SDK version may not match the generated bindings.
+// Mirrors steamworks-sys's build.rs, including its STEAM_SDK_LOCATION override.
+function findSteamSdk() {
+  if (process.env.STEAM_SDK_LOCATION) return process.env.STEAM_SDK_LOCATION;
+  const metadata = JSON.parse(
+    execFileSync("cargo", ["metadata", "--format-version", "1"], {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    })
+  );
+  const sys = metadata.packages.find((p) => p.name === "steamworks-sys");
+  if (!sys) throw new Error("steamworks-sys not found in cargo metadata");
+  return join(dirname(sys.manifest_path), "lib", "steam");
+}
+
 const idlerExe = join(root, "target", "release", "steam-idle.exe");
-const steamApiDll = join(root, "Dependencies", "steam_api64.dll");
+const steamApiDll = join(findSteamSdk(), "redistributable_bin", "win64", "steam_api64.dll");
 
 if (!existsSync(idlerExe)) {
   throw new Error(`steam-idle.exe not found at ${idlerExe}`);

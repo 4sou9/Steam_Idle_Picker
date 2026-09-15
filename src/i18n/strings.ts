@@ -20,8 +20,6 @@ export interface Strings {
   AndOthers: string;
   MaxSelection: string;
   RefreshOffline: string;
-  IdlingPrefix: string;
-  IdlingGames: string;
   IdleStart: string;
   IdleStop: string;
   LoadingLibrary: string;
@@ -31,6 +29,10 @@ export interface Strings {
   SortId: string;
   StatusLabel: string;
   StatusRunning: string;
+  Minimize: string;
+  Maximize: string;
+  Restore: string;
+  Close: string;
 }
 
 export const ja: Strings = {
@@ -55,8 +57,6 @@ export const ja: Strings = {
   AndOthers: " ほか {n} 本",
   MaxSelection: "同時にアイドルできるのは 32 本までです",
   RefreshOffline: "Steam に接続できないため、前回の一覧を保持しました",
-  IdlingPrefix: "起動中: ",
-  IdlingGames: "ゲーム",
   IdleStart: "▶ アイドル開始",
   IdleStop: "■ アイドル停止",
   LoadingLibrary: "ライブラリを読み込み中...",
@@ -66,6 +66,10 @@ export const ja: Strings = {
   SortId: "ID",
   StatusLabel: "ステータス: ",
   StatusRunning: " 稼働中",
+  Minimize: "最小化",
+  Maximize: "最大化",
+  Restore: "元に戻す",
+  Close: "閉じる",
 };
 
 export const en: Strings = {
@@ -90,8 +94,6 @@ export const en: Strings = {
   AndOthers: " and {n} more",
   MaxSelection: "Up to 32 games can idle at the same time",
   RefreshOffline: "Steam is not reachable; kept the previous list",
-  IdlingPrefix: "Running: ",
-  IdlingGames: " games",
   IdleStart: "▶ Start Idling",
   IdleStop: "■ Stop Idling",
   LoadingLibrary: "Loading library...",
@@ -101,6 +103,10 @@ export const en: Strings = {
   SortId: "ID",
   StatusLabel: "Status: ",
   StatusRunning: " running",
+  Minimize: "Minimize",
+  Maximize: "Maximize",
+  Restore: "Restore Down",
+  Close: "Close",
 };
 
 export function detectLanguage(): "ja" | "en" {
@@ -110,3 +116,6 @@ export function detectLanguage(): "ja" | "en" {
 export function getStrings(lang: "ja" | "en"): Strings {
   return lang === "ja" ? ja : en;
 }
+
+/** Strings for the language detected at startup. */
+export const t = getStrings(detectLanguage());

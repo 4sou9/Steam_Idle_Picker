@@ -1,17 +1,14 @@
 use std::collections::HashMap;
+use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
 use serde::Serialize;
 
 use crate::process_guard::{self, Job};
 
-#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// Exit codes of steam-idle.exe (see steam-idle/src/main.rs).
@@ -114,22 +111,25 @@ impl IdleManager {
     }
 
     pub fn start_idle(&self, app_id: u32) -> bool {
-        if self.is_idling(app_id) {
+        // Held from the check to the insert, so two starts of the same AppID cannot both
+        // spawn a helper (the second insert would drop the first Child without killing it).
+        let mut processes = self.processes.lock().unwrap();
+        self.reap(&mut processes);
+        if processes.contains_key(&app_id) {
             return true;
         }
         if !self.idler_exe.is_file() {
             return false;
         }
 
-        let engine_dir = match self.idler_exe.parent() {
-            Some(dir) => dir,
-            None => return false,
+        let Some(engine_dir) = self.idler_exe.parent() else {
+            return false;
         };
 
         let mut cmd = std::process::Command::new(&self.idler_exe);
-        cmd.arg(app_id.to_string()).current_dir(engine_dir);
-        #[cfg(windows)]
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd.arg(app_id.to_string())
+            .current_dir(engine_dir)
+            .creation_flags(CREATE_NO_WINDOW);
 
         let Ok(child) = cmd.spawn() else {
             return false;
@@ -138,7 +138,7 @@ impl IdleManager {
             job.assign(&child);
         }
 
-        self.processes.lock().unwrap().insert(
+        processes.insert(
             app_id,
             Helper {
                 child,

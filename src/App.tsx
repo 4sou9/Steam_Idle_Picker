@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import ContextMenu, { type MenuItem } from "./ContextMenu";
-import { detectLanguage, getStrings, type Strings } from "./i18n/strings";
+import { t } from "./i18n/strings";
 import type { AppSettings, FailureReason, FilterMode, IdleFailure, SortMode, SteamGame } from "./types";
 import Titlebar from "./Titlebar";
 import "./styles/app.css";
@@ -11,8 +11,6 @@ const NOTICE_MS = 6000;
 const ICON_CLEAR = "\uE711";
 const ICON_STAR = "\uE734";
 const ICON_STAR_FILLED = "\uE735";
-const lang = detectLanguage();
-const t = getStrings(lang);
 
 const FILTERS: { value: FilterMode; label: string }[] = [
   { value: "all", label: t.FilterAll },
@@ -40,6 +38,10 @@ async function copyText(text: string) {
   }
 }
 
+function sameIds(set: Set<number>, ids: number[]) {
+  return set.size === ids.length && ids.every((id) => set.has(id));
+}
+
 function sortIcon(active: boolean, ascending: boolean) {
   if (!active) return "";
   return ascending ? " ↑" : " ↓";
@@ -56,16 +58,30 @@ export default function App() {
   const [sortAscending, setSortAscending] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [notice, setNotice] = useState("");
   const [menu, setMenu] = useState<{ game: SteamGame; x: number; y: number } | null>(null);
 
-  const settingsRef = useRef<AppSettings>({ Language: lang, SelectedGames: [], Favorites: [], Filter: "all" });
-  const pollRef = useRef<number | null>(null);
+  const settingsRef = useRef<AppSettings>({ SelectedGames: [], Favorites: [], Filter: "all" });
+  // Until the saved settings are loaded, saving would overwrite them with empty lists.
+  const settingsLoadedRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const isIdling = idlingIds.size > 0;
   const gameIds = useMemo(() => new Set(games.map((g) => g.AppId)), [games]);
   const gameNames = useMemo(() => new Map(games.map((g) => [g.AppId, g.Name])), [games]);
+  // Latest selection for async work that outlives a render (see startIdling).
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+
+  /** "Name" or "Name and N more" for a notice about several games. */
+  const describeGames = useCallback(
+    (appIds: number[]) => {
+      const name = gameNames.get(appIds[0]) ?? String(appIds[0]);
+      return appIds.length > 1 ? name + t.AndOthers.replace("{n}", String(appIds.length - 1)) : name;
+    },
+    [gameNames]
+  );
 
   useEffect(() => {
     if (!notice) return;
@@ -86,11 +102,9 @@ export default function App() {
 
       const latest = failures[failures.length - 1];
       const same = recent.filter((f) => f.failure.reason === latest.reason);
-      const name = gameNames.get(same[0].failure.appId) ?? String(same[0].failure.appId);
-      const others = same.length > 1 ? t.AndOthers.replace("{n}", String(same.length - 1)) : "";
-      setNotice(`${name}${others}: ${FAILURE_TEXT[latest.reason]}`);
+      setNotice(`${describeGames(same.map((f) => f.failure.appId))}: ${FAILURE_TEXT[latest.reason]}`);
     },
-    [gameNames]
+    [describeGames]
   );
 
   // The webview's own menu (Reload, Inspect, ...) is not useful here; inputs keep theirs.
@@ -107,45 +121,48 @@ export default function App() {
   // ── Initial load ──────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const [cache, settings] = await Promise.all([api.loadCache(), api.loadSettings()]);
-      settingsRef.current = settings;
-      setSelectedIds(new Set(settings.SelectedGames));
-      setFavoriteIds(new Set(settings.Favorites));
-      if (FILTERS.some((f) => f.value === settings.Filter)) setFilter(settings.Filter);
-      if (cache) {
-        setGames(cache.Games);
-      } else {
-        setStatusMessage(t.NoCache);
+      try {
+        const [cache, settings] = await Promise.all([api.loadCache(), api.loadSettings()]);
+        settingsRef.current = settings;
+        settingsLoadedRef.current = true;
+        setSelectedIds(new Set(settings.SelectedGames));
+        setFavoriteIds(new Set(settings.Favorites));
+        if (FILTERS.some((f) => f.value === settings.Filter)) setFilter(settings.Filter);
+        if (cache) {
+          setGames(cache.Games);
+        } else {
+          setStatusMessage(t.NoCache);
+        }
+        const ids = await api.getIdlingIds();
+        if (ids.length > 0) setIdlingIds(new Set(ids));
+      } catch (e) {
+        setStatusMessage(t.LoadError + String(e));
       }
-      const ids = await api.getIdlingIds();
-      if (ids.length > 0) setIdlingIds(new Set(ids));
     })();
   }, []);
 
-  // ── Polling while idling (5.1.1: replace idlingIds wholesale) ──────────
+  // ── Polling while idling (replace idlingIds wholesale) ────────────────
   useEffect(() => {
-    if (!isIdling) {
-      if (pollRef.current !== null) {
-        window.clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-      return;
-    }
-    pollRef.current = window.setInterval(async () => {
+    if (!isIdling) return;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
       const ids = await api.getIdlingIds();
-      setIdlingIds(new Set(ids));
+      // A poll still in flight when idling stops (e.g. Stop was clicked) must not bring
+      // back the IDs it read before the stop. An unchanged Set is kept so the list does
+      // not re-render every tick.
+      if (!cancelled) setIdlingIds((prev) => (sameIds(prev, ids) ? prev : new Set(ids)));
       showFailures(await api.takeIdleFailures());
     }, 1000);
     return () => {
-      if (pollRef.current !== null) window.clearInterval(pollRef.current);
-      pollRef.current = null;
+      cancelled = true;
+      window.clearInterval(timer);
     };
   }, [isIdling, showFailures]);
 
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     const settings: AppSettings = { ...settingsRef.current, ...patch };
     settingsRef.current = settings;
-    void api.saveSettings(settings);
+    if (settingsLoadedRef.current) void api.saveSettings(settings);
   }, []);
 
   const changeFilter = useCallback(
@@ -160,32 +177,35 @@ export default function App() {
   // so this only ever adds or removes the clicked ID.
   const toggleFavorite = useCallback(
     (appId: number) => {
-      setFavoriteIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(appId)) next.delete(appId);
-        else next.add(appId);
-        updateSettings({ Favorites: Array.from(next) });
-        return next;
-      });
+      const next = new Set(favoriteIds);
+      if (next.has(appId)) next.delete(appId);
+      else next.add(appId);
+      setFavoriteIds(next);
+      updateSettings({ Favorites: Array.from(next) });
     },
-    [updateSettings]
+    [favoriteIds, updateSettings]
   );
 
   // ── Selection ────────────────────────────────────────────────────────
+  // Saved selections missing from the list have no row to uncheck, so only games in
+  // the list count toward the cap.
+  const selectedInListCount = useMemo(
+    () => Array.from(selectedIds).filter((id) => gameIds.has(id)).length,
+    [selectedIds, gameIds]
+  );
+
   const toggleSelected = useCallback(
     (appId: number, checked: boolean) => {
-      if (checked && !selectedIds.has(appId) && selectedIds.size >= MAX_SELECTION) {
+      if (checked === selectedIds.has(appId)) return;
+      if (checked && selectedInListCount >= MAX_SELECTION) {
         setNotice(t.MaxSelection);
         return;
       }
-      setSelectedIds((prev) => {
-        if (checked && prev.size >= MAX_SELECTION) return prev; // hard cap, ignore
-        const next = new Set(prev);
-        if (checked) next.add(appId);
-        else next.delete(appId);
-        updateSettings({ SelectedGames: Array.from(next) });
-        return next;
-      });
+      const next = new Set(selectedIds);
+      if (checked) next.add(appId);
+      else next.delete(appId);
+      setSelectedIds(next);
+      updateSettings({ SelectedGames: Array.from(next) });
 
       if (isIdling) {
         if (checked) {
@@ -204,21 +224,39 @@ export default function App() {
         }
       }
     },
-    [isIdling, updateSettings, selectedIds, gameNames]
+    [isIdling, updateSettings, selectedIds, selectedInListCount, gameNames]
   );
 
   // ── Idle start/stop ──────────────────────────────────────────────────
+  // Helpers start one at a time, so the button stays disabled until all have started.
+  // The selection is re-read after each start: games checked meanwhile are started too,
+  // and games unchecked meanwhile are stopped again.
   const startIdling = useCallback(async () => {
-    const started = new Set<number>();
-    for (const appId of selectedIds) {
-      // Saved selections can outlive the game list (e.g. after a library reload).
-      if (!gameIds.has(appId)) continue;
-      const ok = await api.startIdle(appId);
-      if (ok) started.add(appId);
-      else setNotice(`${gameNames.get(appId) ?? appId}: ${t.ErrStartFailed}`);
+    setIsStarting(true);
+    try {
+      const attempted = new Set<number>();
+      const started = new Set<number>();
+      const failed: number[] = [];
+      // Games that reappear in the list can push the selection past the cap.
+      while (started.size < MAX_SELECTION) {
+        // Saved selections can outlive the game list (e.g. after a library reload).
+        const appId = Array.from(selectedIdsRef.current).find((id) => gameIds.has(id) && !attempted.has(id));
+        if (appId === undefined) break;
+        attempted.add(appId);
+        if (await api.startIdle(appId)) started.add(appId);
+        else failed.push(appId);
+      }
+      for (const appId of started) {
+        if (selectedIdsRef.current.has(appId)) continue;
+        await api.stopIdle(appId);
+        started.delete(appId);
+      }
+      setIdlingIds(started);
+      if (failed.length > 0) setNotice(`${describeGames(failed)}: ${t.ErrStartFailed}`);
+    } finally {
+      setIsStarting(false);
     }
-    setIdlingIds(started);
-  }, [selectedIds, gameIds, gameNames]);
+  }, [gameIds, describeGames]);
 
   const stopAllIdling = useCallback(async () => {
     await api.stopAll();
@@ -226,9 +264,10 @@ export default function App() {
   }, []);
 
   const toggleIdle = useCallback(() => {
+    if (isStarting) return;
     if (isIdling) void stopAllIdling();
     else void startIdling();
-  }, [isIdling, startIdling, stopAllIdling]);
+  }, [isIdling, isStarting, startIdling, stopAllIdling]);
 
   // ── Refresh ──────────────────────────────────────────────────────────
   const refreshLibrary = useCallback(async () => {
@@ -321,7 +360,7 @@ export default function App() {
         <button
           className={"icon-button primary" + (isIdling ? " stop" : "")}
           onClick={toggleIdle}
-          disabled={!isIdling && !startableSelected}
+          disabled={isStarting || (!isIdling && !startableSelected)}
           title={isIdling ? t.IdleStop : t.IdleStart}
         >
           {isIdling ? "" : ""}
@@ -392,7 +431,6 @@ export default function App() {
               selected={selectedIds.has(game.AppId)}
               idling={idlingIds.has(game.AppId)}
               favorite={favoriteIds.has(game.AppId)}
-              strings={t}
               onToggle={toggleSelected}
               onToggleFavorite={toggleFavorite}
               onContextMenu={openMenu}
@@ -420,12 +458,12 @@ export default function App() {
   );
 }
 
-function GameRow({
+// Memoized: a large library would otherwise re-render every row on each state change.
+const GameRow = memo(function GameRow({
   game,
   selected,
   idling,
   favorite,
-  strings,
   onToggle,
   onToggleFavorite,
   onContextMenu,
@@ -434,7 +472,6 @@ function GameRow({
   selected: boolean;
   idling: boolean;
   favorite: boolean;
-  strings: Strings;
   onToggle: (appId: number, checked: boolean) => void;
   onToggleFavorite: (appId: number) => void;
   onContextMenu: (game: SteamGame, x: number, y: number) => void;
@@ -444,7 +481,13 @@ function GameRow({
       className={"game-row" + (selected ? " selected" : "")}
       onContextMenu={(e) => {
         e.preventDefault();
-        onContextMenu(game, e.clientX, e.clientY);
+        // The Menu key / Shift+F10 reports (0, 0); open the menu at the row instead.
+        if (e.clientX === 0 && e.clientY === 0) {
+          const rect = e.currentTarget.getBoundingClientRect();
+          onContextMenu(game, rect.left + 24, rect.bottom);
+        } else {
+          onContextMenu(game, e.clientX, e.clientY);
+        }
       }}
     >
       <button
@@ -457,7 +500,7 @@ function GameRow({
       <button
         className={"fav-button" + (favorite ? " on" : "")}
         onClick={() => onToggleFavorite(game.AppId)}
-        title={favorite ? strings.RemoveFavorite : strings.AddFavorite}
+        title={favorite ? t.RemoveFavorite : t.AddFavorite}
         aria-pressed={favorite}
       >
         {favorite ? ICON_STAR_FILLED : ICON_STAR}
@@ -469,4 +512,4 @@ function GameRow({
       <span className="app-id">{game.AppId}</span>
     </div>
   );
-}
+});

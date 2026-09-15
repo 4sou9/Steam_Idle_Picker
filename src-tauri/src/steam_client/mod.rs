@@ -5,7 +5,7 @@
 pub mod loader;
 mod native;
 
-pub use loader::{get_install_path, SteamLoader};
+pub use loader::{get_active_user, get_install_path, SteamLoader};
 use native::{ISteamApps001, ISteamClient018};
 
 /// Owns a steamclient pipe/user session and the resolved ISteamApps001 interface.

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { t } from "./i18n/strings";
 
 export default function Titlebar({ children }: { children: ReactNode }) {
   const appWindow = useMemo(() => getCurrentWindow(), []);
@@ -21,20 +22,27 @@ export default function Titlebar({ children }: { children: ReactNode }) {
         {children}
       </div>
       <div className="titlebar-controls">
-        <button className="titlebar-button" onClick={() => void appWindow.minimize()} aria-label="Minimize">
+        <button
+          className="titlebar-button"
+          onClick={() => void appWindow.minimize()}
+          title={t.Minimize}
+          aria-label={t.Minimize}
+        >
           &#xE921;
         </button>
         <button
           className="titlebar-button"
           onClick={() => void appWindow.toggleMaximize()}
-          aria-label="Maximize"
+          title={isMaximized ? t.Restore : t.Maximize}
+          aria-label={isMaximized ? t.Restore : t.Maximize}
         >
           {isMaximized ? <>&#xE923;</> : <>&#xE922;</>}
         </button>
         <button
           className="titlebar-button close"
           onClick={() => void appWindow.close()}
-          aria-label="Close"
+          title={t.Close}
+          aria-label={t.Close}
         >
           &#xE8BB;
         </button>
